@@ -1,0 +1,49 @@
+---
+- hosts: all
+  become: true
+  vars_files:
+  - variables
+  tasks:
+  - name: Install the dependencies
+    yum:
+      name: 
+        - yum-utils
+        - device-mapper-persistent-data 
+        - lvm2
+      state: present
+
+  - name: Update System packages
+    yum:
+      name: '*'
+      state: latest
+
+  - name: Build hosts file
+    lineinfile:
+      dest: /etc/hosts
+      regexp: '.*{{ item }}$'
+      line: '{{ hostvars[item].ansible_host }} {{item}}'
+      state: present
+    with_items: '{{ groups["all"] }}'
+
+  - name: Disable Swap
+    shell: swapoff -a
+
+  - name: Commenting Swap entries in /etc/fstab 
+    replace:
+      path: /etc/fstab
+      regexp: '(.*swap*)'
+      replace: '#\1'
+
+  - name: Disable Selinux
+    selinux:
+      policy: targeted
+      state: disabled
+
+  - name: Disable Firewall
+    service:
+      name: firewalld
+      state: stopped
+      enabled: no
+
+  - name: Reboot the machine
+    reboot:

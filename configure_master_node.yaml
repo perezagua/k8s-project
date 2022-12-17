@@ -1,0 +1,20 @@
+---
+- hosts: master
+  vars_files:
+  - env_variables 
+  tasks:
+  - name: Initializing Kubernetes cluster
+    shell: kubeadm init --control-plane-endpoint 192.168.56.100 --pod-network-cidr=172.16.0.0/16
+    register: output
+
+  - name: Storing Logs and Generated token for future purpose.
+    local_action: copy content={{ output.stdout }} dest=join_token
+
+  - name: Copying required files
+    shell: |
+      mkdir -p $HOME/.kube
+      sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+      sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+  - name: Install Network Add-on
+    command: kubectl apply -f https://github.com/weaveworks/weave/releases/download/v2.8.1/weave-daemonset-k8s.yaml
