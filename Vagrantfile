@@ -2,7 +2,7 @@
 # vi: set ft=ruby :
 
 Vagrant.configure("2") do |config|
-  config.vm.box = "centos/7"
+  config.vm.box = "geerlingguy/centos7"
   config.vm.synced_folder ".", "/vagrant", disable: true
   config.vm.provider :virtualbox do |v|
     v.memory = 1024
