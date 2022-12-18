@@ -1,14 +1,29 @@
 ---
 - hosts: master
+  become: true
   vars_files:
-  - env_variables 
+  - variables 
   tasks:
+  - name: Remove file (delete file)
+    file:
+      path: /etc/containerd/config.toml
+      state: absent
+
+  - name: Restart Docker service
+    service:
+      name: containerd
+      state: restarted
+
   - name: Initializing Kubernetes cluster
     shell: kubeadm init --control-plane-endpoint 192.168.56.100 --pod-network-cidr=172.16.0.0/16
     register: output
 
+  - name: Print return information from the previous task
+    debug:
+      var: output
+
   - name: Storing Logs and Generated token for future purpose.
-    local_action: copy content={{ output.stdout }} dest=join_token
+    local_action: copy content="{{ output.stdout_lines[0] }}" dest="/etc/kube_join_command" mode=0777
 
   - name: Copying required files
     shell: |
