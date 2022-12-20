@@ -1,21 +1,16 @@
 ---
 - hosts: all
   become: true
+  vars_files:
+  - variables
   tasks:
   - name: Install the dependencies
     yum:
       name: 
-        - net-tools
-        - wget
         - yum-utils
         - device-mapper-persistent-data 
         - lvm2
       state: present
-
-  - name: Upgrade all packages
-    yum:
-      name: "*"
-      state: latest
 
   - name: Build hosts file
     lineinfile:
@@ -24,6 +19,18 @@
       line: '{{ hostvars[item].ansible_host }} {{item}}'
       state: present
     with_items: '{{ groups["all"] }}'
+
+  - name: Remove swapfile from /etc/fstab
+    mount:
+      name: "{{ item }}"
+      fstype: swap
+      state: absent
+    with_items:
+      - swap
+      - none
+
+  - name: Disable swap
+    command: swapoff -a
 
   - name: Disable Selinux
     selinux:
@@ -36,7 +43,7 @@
       state: stopped
       enabled: no
 
-  - name: Add and enable official Docker Repository to CentOS 7
+  - name: Add official Docker Repository to CentOS 7
     get_url:
       url: https://download.docker.com/linux/centos/docker-ce.repo
       dest: /etc/yum.repos.d/docker-ce.repo
@@ -45,22 +52,19 @@
   - name: Install the latest Docker version on CentOS 7
     yum:
       name: docker-ce
-      state: latest
+      state: present
+      update_cache: yes
 
-  - name: Starting and Enabling Docker service
+  - name: Start & enable Docker service
     service:
       name: docker
       state: started
       enabled: true
 
-  - name: Create kubernetes repo file
-    file:
-      path: /etc/yum.repos.d/kubernetes.repo
-      state: touch
-
   - name: Add K8s Source
     blockinfile:
       path: /etc/yum.repos.d/kubernetes.repo
+      create: true
       block: |
         [kubernetes]
         name=Kubernetes
@@ -75,26 +79,78 @@
       name: kubelet
       state: latest
 
+  - name: Starting and Enabling Kubelet
+    service:
+      name: kubelet
+      state: started
+      enabled: true
+
   - name: Install kubeadm and kubectl on CentOS 7
     yum:
       name: kubeadm
       state: latest
 
-  - name: Disable Swap
-    shell: swapoff -a
+  - name: Ensure net.bridge.bridge-nf-call-ip6tables is set to 1
+    sysctl:
+      name: net.bridge.bridge-nf-call-ip6tables
+      value: 1
+      state: present
 
-  - name: Commenting Swap entries in /etc/fstab 
-    replace:
-      path: /etc/fstab
-      regexp: '(.*swap*)'
-      replace: '#\1'
+  - name: Ensure net.bridge.bridge-nf-call-iptables is set to 1
+    sysctl:
+      name: net.bridge.bridge-nf-call-iptables
+      value: 1
+      state: present
 
-  - name: Update iptables config
-    blockinfile:
-      path: /etc/sysctl.d/k8s.conf
-      block: |
-        net.bridge.bridge-nf-call-ip6tables = 1
-        net.bridge.bridge-nf-call-iptables = 1
+  - name: Remove config.toml file
+    file:
+      path: /etc/containerd/config.toml
+      state: absent
 
-  - name: Apply new settings
-    command: sysctl --system
+  - name: Restart Docker service
+    service:
+      name: containerd
+      state: restarted
+
+  - name: Initializing Kubernetes cluster
+    when: inventory_hostname in groups['master']
+    command: kubeadm init --control-plane-endpoint=192.168.56.100 --pod-network-cidr=172.16.0.0/16
+
+  - name: Set up Kubernetes for not root user
+    become: false
+    when: inventory_hostname in groups['master']
+    shell: |
+      mkdir -p $HOME/.kube
+      sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+      sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+  - name: Install Weave Network Add-on
+    become: false
+    when: inventory_hostname in groups['master']
+    command: kubectl apply -f https://github.com/weaveworks/weave/releases/download/v2.8.1/weave-daemonset-k8s.yaml
+
+  - name: Retrieve Kubernetes join command that is used to join worker node(s)
+    become: false
+    when: inventory_hostname in groups['master']
+    command: kubeadm token create --print-join-command
+    register: join_command
+
+  - name: Print join_command
+    debug:
+      msg: "{{ join_command }}"
+    when: inventory_hostname in groups['master']
+
+#  - name: Attach kubeadm join command to a file on Ansible control node
+#    when: inventory_hostname in groups['master']
+#    local_action: "copy content='{{ join_command.stdout_lines[0] }}' dest=join-command"
+#
+#  - name: Copy the join-command file created above to worker node
+#    when: inventory_hostname in groups['workers']
+#    copy:
+#      src: ./join-command
+#      dest: /tmp/kubeadm-join.sh
+#      mode: '0777'
+#
+#  - name: Join the worker node to cluster
+#    when: inventory_hostname in groups['workers']
+#    command: sh /tmp/kubeadm-join.sh

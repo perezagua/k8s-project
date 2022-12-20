@@ -12,11 +12,6 @@
         - lvm2
       state: present
 
-  - name: Update System packages
-    yum:
-      name: '*'
-      state: latest
-
   - name: Build hosts file
     lineinfile:
       dest: /etc/hosts
@@ -25,14 +20,17 @@
       state: present
     with_items: '{{ groups["all"] }}'
 
-  - name: Disable Swap
-    shell: swapoff -a
+  - name: Remove swapfile from /etc/fstab
+    mount:
+      name: "{{ item }}"
+      fstype: swap
+      state: absent
+    with_items:
+      - swap
+      - none
 
-  - name: Commenting Swap entries in /etc/fstab 
-    replace:
-      path: /etc/fstab
-      regexp: '(.*swap*)'
-      replace: '#\1'
+  - name: Disable swap
+    command: swapoff -a
 
   - name: Disable Selinux
     selinux:
@@ -44,6 +42,3 @@
       name: firewalld
       state: stopped
       enabled: no
-
-  - name: Reboot the machine
-    reboot:
