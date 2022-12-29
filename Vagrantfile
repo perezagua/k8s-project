@@ -1,38 +1,35 @@
-# -*- mode: ruby -*-
-# vi: set ft=ruby :
+NUM_WORKER_NODES=2
+IP_NW="10.0.0."
+IP_START=10
 
 Vagrant.configure("2") do |config|
+  config.vm.provision "shell", inline: "yum -y update"
+
   config.vm.box = "geerlingguy/centos7"
-  config.vm.synced_folder ".", "/vagrant", disable: true
-  config.vm.provider :virtualbox do |v|
-    v.memory = 1024
-    v.cpus = 1
-    v.linked_clone = true
+  #config.vm.box = "bento/ubuntu-22.04"
+  config.vm.box_check_update = true
+
+  config.vm.define "master" do |master|
+    master.vm.hostname = "master-node"
+    master.vm.network "private_network", ip: IP_NW + "#{IP_START}"
+    master.vm.provider "virtualbox" do |vb|
+      vb.memory = 4048
+      vb.cpus = 2
+    end
+    #master.vm.provision "shell", path: "scripts/common.sh"
+    #master.vm.provision "shell", path: "scripts/master.sh"
   end
 
-  config.vm.define "master" do |m|
-    m.vm.hostname = "master.example.com"
-    m.vm.network "private_network", ip: "192.168.56.100", hostname: true
-    m.vm.provider "virtualbox" do |v|
-      v.name = "k8s-master"
-      v.memory = 2048
-      v.cpus = 2
+  (1..NUM_WORKER_NODES).each do |i|
+    config.vm.define "node0#{i}" do |node|
+      node.vm.hostname = "worker-node0#{i}"
+      node.vm.network "private_network", ip: IP_NW + "#{IP_START + i}"
+      node.vm.provider "virtualbox" do |vb|
+        vb.memory = 2048
+        vb.cpus = 1
+      end
+      #node.vm.provision "shell", path: "scripts/common.sh"
+      #node.vm.provision "shell", path: "scripts/node.sh"
     end
   end
-
-  config.vm.define "worker1" do |w|
-    w.vm.hostname = "worker1.example.com"
-    w.vm.network "private_network", ip: "192.168.56.101", hostname: true
-    w.vm.provider "virtualbox" do |v|
-      v.name = "k8s-worker1"
-    end    
-  end
-
-  config.vm.define "worker2" do |w|
-    w.vm.hostname = "worker2.example.com"
-    w.vm.network "private_network", ip: "192.168.56.102", hostname: true
-    w.vm.provider "virtualbox" do |v|
-      v.name = "k8s-worker2"
-    end    
-  end
-end
+end 

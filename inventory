@@ -1,19 +1,19 @@
 master:
   hosts:
-    master.example.com:
-      ansible_host: 192.168.56.100
+    master-node:
+      ansible_host: 10.0.0.10
       ansible_user: vagrant
       ansible_ssh_private_key_file: ./.vagrant/machines/master/virtualbox/private_key
 workers:
   hosts:
-    worker1.example.com:
+    worker-node01:
       ansible_user: vagrant
-      ansible_ssh_private_key_file: ./.vagrant/machines/worker1/virtualbox/private_key
-      ansible_host: 192.168.56.101
-    worker2.example.com:
+      ansible_ssh_private_key_file: ./.vagrant/machines/node01/virtualbox/private_key
+      ansible_host: 10.0.0.11
+    worker-node02:
       ansible_user: vagrant
-      ansible_ssh_private_key_file: ./.vagrant/machines/worker2/virtualbox/private_key
-      ansible_host: 192.168.56.102
+      ansible_ssh_private_key_file: ./.vagrant/machines/node02/virtualbox/private_key
+      ansible_host: 10.0.0.12
 all:
   children:
     master:

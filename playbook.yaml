@@ -6,11 +6,38 @@
   tasks:
   - name: Install the dependencies
     yum:
-      name: 
-        - yum-utils
-        - device-mapper-persistent-data 
-        - lvm2
+      name: "{{ item }}"
       state: present
+    loop:
+      "{{ dependencies }}"
+
+  - name: Enable Firewall
+    service:
+      name: firewalld
+      state: started
+      enabled: yes
+
+  - name: Add firewall rules on the master node
+    firewalld:
+      zone: public
+      port: "{{ item.port }}"
+      permanent: yes
+      immediate: yes
+      state: enabled
+    loop:
+      "{{ master_port_list }}"
+    when: inventory_hostname in groups['master']
+
+  - name: Add firewall rules on the worker nodes
+    firewalld:
+      zone: public
+      port: "{{ item.port }}"
+      permanent: yes
+      immediate: yes
+      state: enabled
+    loop:
+      "{{ worker_port_list }}"
+    when: inventory_hostname in groups['workers']
 
   - name: Build hosts file
     lineinfile:
@@ -20,28 +47,29 @@
       state: present
     with_items: '{{ groups["all"] }}'
 
-  - name: Remove swapfile from /etc/fstab
-    mount:
+  - name: Load two required modules
+    shell: |
+      modprobe overlay
+      modprobe br_netfilter
+
+  - name: Add configuration to make them loadable at boot time.
+    blockinfile:
+      path: /etc/modules-load.d/containerd.conf
+      create: true
+      block: |
+        overlay
+        br_netfilter
+
+  - name: Set up other prerequisites.
+    sysctl:
       name: "{{ item }}"
-      fstype: swap
-      state: absent
-    with_items:
-      - swap
-      - none
-
-  - name: Disable swap
-    command: swapoff -a
-
-  - name: Disable Selinux
-    selinux:
-      policy: targeted
-      state: disabled
-
-  - name: Disable Firewall
-    service:
-      name: firewalld
-      state: stopped
-      enabled: no
+      value: '1'
+      sysctl_set: yes
+      state: present
+      reload: yes
+      sysctl_file: /etc/sysctl.d/99-kubernetes-cri.conf
+    loop:
+      "{{ sysctl_set }}"
 
   - name: Add official Docker Repository to CentOS 7
     get_url:
@@ -49,19 +77,29 @@
       dest: /etc/yum.repos.d/docker-ce.repo
       mode: 0644
 
-  - name: Install the latest Docker version on CentOS 7
+  - name: Install the containerd package.
     yum:
-      name: docker-ce
+      name: containerd
       state: present
-      update_cache: yes
 
-  - name: Start & enable Docker service
+  - name: Create a configuration file for containerd and set it to default.
+    shell: |
+      mkdir -p /etc/containerd
+      containerd config default | tee /etc/containerd/config.toml
+
+  - name: Set cgroupdriver to systemd
+    lineinfile:
+      path: /etc/containerd/config.toml
+      regexp: 'SystemdCgroup = false'
+      line: SystemdCgroup = true
+
+  - name: To apply the changes made in the last step, restart containerd.
     service:
-      name: docker
-      state: started
+      name: containerd
+      state: restarted
       enabled: true
 
-  - name: Add K8s Source
+  - name: Add the Kubernetes repository
     blockinfile:
       path: /etc/yum.repos.d/kubernetes.repo
       create: true
@@ -74,47 +112,27 @@
         repo_gpgcheck=1
         gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
 
-  - name: Install Kubelet on CentOS 7
+  - name: Install all Kubernetes modules.
     yum:
-      name: kubelet
-      state: latest
+      name: "{{ packages }}"
+      state: present
+    vars:
+      packages:
+      - kubelet
+      - kubeadm
+      - kubectl
 
-  - name: Starting and Enabling Kubelet
+  - name: Turn off swap
+    command: swapoff -a
+
+  - name: Enable kubelet
     service:
       name: kubelet
-      state: started
-      enabled: true
-
-  - name: Install kubeadm and kubectl on CentOS 7
-    yum:
-      name: kubeadm
-      state: latest
-
-  - name: Ensure net.bridge.bridge-nf-call-ip6tables is set to 1
-    sysctl:
-      name: net.bridge.bridge-nf-call-ip6tables
-      value: 1
-      state: present
-
-  - name: Ensure net.bridge.bridge-nf-call-iptables is set to 1
-    sysctl:
-      name: net.bridge.bridge-nf-call-iptables
-      value: 1
-      state: present
-
-  - name: Remove config.toml file
-    file:
-      path: /etc/containerd/config.toml
-      state: absent
-
-  - name: Restart Docker service
-    service:
-      name: containerd
-      state: restarted
+      enabled: yes
 
   - name: Initializing Kubernetes cluster
     when: inventory_hostname in groups['master']
-    command: kubeadm init --control-plane-endpoint=192.168.56.100 --pod-network-cidr=172.16.0.0/16
+    command: kubeadm init --control-plane-endpoint=10.0.0.10
 
   - name: Set up Kubernetes for not root user
     become: false
@@ -123,23 +141,28 @@
       mkdir -p $HOME/.kube
       sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
       sudo chown $(id -u):$(id -g) $HOME/.kube/config
-      
-#  - name: Install Flannel Network Add-on
-#    become: false
-#    when: inventory_hostname in groups['master']
-#    command: kubectl apply -f https://github.com/weaveworks/weave/releases/download/v2.8.1/weave-daemonset-k8s.yaml
-#
-#  - name: Retrieve Kubernetes join command that is used to join worker node(s)
-#    become: false
-#    when: inventory_hostname in groups['master']
-#    command: kubeadm token create --print-join-command
-#    register: join_command_raw
-#
-#  - name: Set join command
-#    set_fact:
-#      join_command: "{{ join_command_raw.stdout_lines[0] }}"
-#    when: inventory_hostname in groups['master']
-#
-#  - name: Join node to the cluster
-#    shell: "{{ hostvars['master.example.com'].join_command }}"
-#    when: inventory_hostname in groups['workers']
+
+  - name: Install Flannel Network Add-on
+    become: false
+    when: inventory_hostname in groups['master']
+    command: kubectl apply -f https://github.com/weaveworks/weave/releases/download/v2.8.1/weave-daemonset-k8s.yaml
+
+  - name: Retrieve Kubernetes join command that is used to join worker node(s)
+    become: false
+    when: inventory_hostname in groups['master']
+    command: kubeadm token create --print-join-command
+    register: join_command_raw
+
+  - name: Set join command
+    set_fact:
+      join_command: "{{ join_command_raw.stdout_lines[0] }}"
+    when: inventory_hostname in groups['master']
+
+  - name: Print the join_command
+    debug:
+      msg: "{{ join_command }}"
+    when: inventory_hostname in groups['master']
+    
+  - name: Join node to the cluster
+    shell: "{{ hostvars['master-node'].join_command }}"
+    when: inventory_hostname in groups['workers']
