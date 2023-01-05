@@ -9,6 +9,7 @@ master_port_list:
   - { port: 6783-6784/udp }
 
 worker_port_list:
+  - { port: 10250/tcp }
   - { port: 10251/tcp }
   - { port: 10255/tcp }
   - { port: 30000-32767/tcp }
@@ -24,5 +25,3 @@ dependencies:
   - yum-utils
   - device-mapper-persistent-data 
   - lvm2
-  - ufw
-  - dnf

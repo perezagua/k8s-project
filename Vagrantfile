@@ -1,6 +1,6 @@
-NUM_WORKER_NODES=2
-IP_NW="10.0.0."
-IP_START=10
+NUM_WORKER_NODES=1
+IP_NW="172.31.0."
+IP_START=100
 
 Vagrant.configure("2") do |config|
   config.vm.provision "shell", inline: "yum -y update"
@@ -16,8 +16,6 @@ Vagrant.configure("2") do |config|
       vb.memory = 4048
       vb.cpus = 2
     end
-    #master.vm.provision "shell", path: "scripts/common.sh"
-    #master.vm.provision "shell", path: "scripts/master.sh"
   end
 
   (1..NUM_WORKER_NODES).each do |i|
@@ -28,8 +26,6 @@ Vagrant.configure("2") do |config|
         vb.memory = 2048
         vb.cpus = 1
       end
-      #node.vm.provision "shell", path: "scripts/common.sh"
-      #node.vm.provision "shell", path: "scripts/node.sh"
     end
   end
 end 

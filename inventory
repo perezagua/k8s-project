@@ -1,7 +1,7 @@
 master:
   hosts:
     master-node:
-      ansible_host: 10.0.0.10
+      ansible_host: 172.31.0.100
       ansible_user: vagrant
       ansible_ssh_private_key_file: ./.vagrant/machines/master/virtualbox/private_key
 workers:
@@ -9,11 +9,7 @@ workers:
     worker-node01:
       ansible_user: vagrant
       ansible_ssh_private_key_file: ./.vagrant/machines/node01/virtualbox/private_key
-      ansible_host: 10.0.0.11
-    worker-node02:
-      ansible_user: vagrant
-      ansible_ssh_private_key_file: ./.vagrant/machines/node02/virtualbox/private_key
-      ansible_host: 10.0.0.12
+      ansible_host: 172.31.0.101
 all:
   children:
     master:

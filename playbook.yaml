@@ -52,7 +52,7 @@
       modprobe overlay
       modprobe br_netfilter
 
-  - name: Add configuration to make them loadable at boot time.
+  - name: Add configuration to make them loadable at boot time
     blockinfile:
       path: /etc/modules-load.d/containerd.conf
       create: true
@@ -60,7 +60,7 @@
         overlay
         br_netfilter
 
-  - name: Set up other prerequisites.
+  - name: Set up other prerequisites
     sysctl:
       name: "{{ item }}"
       value: '1'
@@ -77,12 +77,12 @@
       dest: /etc/yum.repos.d/docker-ce.repo
       mode: 0644
 
-  - name: Install the containerd package.
+  - name: Install the containerd package
     yum:
       name: containerd
       state: present
 
-  - name: Create a configuration file for containerd and set it to default.
+  - name: Create a configuration file for containerd and set it to default
     shell: |
       mkdir -p /etc/containerd
       containerd config default | tee /etc/containerd/config.toml
@@ -93,7 +93,7 @@
       regexp: 'SystemdCgroup = false'
       line: SystemdCgroup = true
 
-  - name: To apply the changes made in the last step, restart containerd.
+  - name: To apply the changes made in the last step, restart containerd
     service:
       name: containerd
       state: restarted
@@ -112,7 +112,7 @@
         repo_gpgcheck=1
         gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
 
-  - name: Install all Kubernetes modules.
+  - name: Install all Kubernetes modules (kubelet, kubeadm, kubectl)
     yum:
       name: "{{ packages }}"
       state: present
@@ -132,7 +132,7 @@
 
   - name: Initializing Kubernetes cluster
     when: inventory_hostname in groups['master']
-    command: kubeadm init --control-plane-endpoint=10.0.0.10
+    command: kubeadm init --control-plane-endpoint=172.31.0.100 --pod-network-cidr=10.32.0.0/12
 
   - name: Set up Kubernetes for not root user
     become: false
@@ -142,27 +142,27 @@
       sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
       sudo chown $(id -u):$(id -g) $HOME/.kube/config
 
-  - name: Install Flannel Network Add-on
-    become: false
-    when: inventory_hostname in groups['master']
-    command: kubectl apply -f https://github.com/weaveworks/weave/releases/download/v2.8.1/weave-daemonset-k8s.yaml
-
-  - name: Retrieve Kubernetes join command that is used to join worker node(s)
-    become: false
-    when: inventory_hostname in groups['master']
-    command: kubeadm token create --print-join-command
-    register: join_command_raw
-
-  - name: Set join command
-    set_fact:
-      join_command: "{{ join_command_raw.stdout_lines[0] }}"
-    when: inventory_hostname in groups['master']
-
-  - name: Print the join_command
-    debug:
-      msg: "{{ join_command }}"
-    when: inventory_hostname in groups['master']
-    
-  - name: Join node to the cluster
-    shell: "{{ hostvars['master-node'].join_command }}"
-    when: inventory_hostname in groups['workers']
+#  - name: Install Weave Network Add-on
+#    become: false
+#    when: inventory_hostname in groups['master']
+#    command: kubectl apply -f https://github.com/weaveworks/weave/releases/download/v2.8.1/weave-daemonset-k8s.yaml
+#
+#  - name: Retrieve Kubernetes join command that is used to join worker node(s)
+#    become: false
+#    when: inventory_hostname in groups['master']
+#    command: kubeadm token create --print-join-command
+#    register: join_command_raw
+#
+#  - name: Set join command
+#    set_fact:
+#      join_command: "{{ join_command_raw.stdout_lines[0] }}"
+#    when: inventory_hostname in groups['master']
+#
+#  - name: Print the join_command
+#    debug:
+#      msg: "{{ join_command }}"
+#    when: inventory_hostname in groups['master']
+#    
+#  - name: Join node to the cluster
+#    shell: "{{ hostvars['master-node'].join_command }}"
+#    when: inventory_hostname in groups['workers']
