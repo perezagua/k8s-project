@@ -6,7 +6,6 @@ Vagrant.configure("2") do |config|
   config.vm.provision "shell", inline: "yum -y update"
 
   config.vm.box = "geerlingguy/centos7"
-  #config.vm.box = "bento/ubuntu-22.04"
   config.vm.box_check_update = true
 
   config.vm.define "master" do |master|
@@ -28,4 +27,4 @@ Vagrant.configure("2") do |config|
       end
     end
   end
-end 
+end
