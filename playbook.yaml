@@ -4,11 +4,6 @@
   vars_files:
   - variables
   tasks:
-  - name: upgrade all packages
-    yum: 
-      name: "*"
-      state: latest
-
   - name: Install the dependencies
     yum:
       name: "{{ item }}"
