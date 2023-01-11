@@ -2,16 +2,13 @@ master_port_list:
   - { port: 6443/tcp }
   - { port: 2379-2380/tcp }
   - { port: 10250/tcp }
-  - { port: 10251/tcp }
-  - { port: 10252/tcp }
-  - { port: 10255/tcp }
+  - { port: 10257/tcp }
+  - { port: 10259/tcp }
   - { port: 6783/tcp}
   - { port: 6783-6784/udp }
 
 worker_port_list:
   - { port: 10250/tcp }
-  - { port: 10251/tcp }
-  - { port: 10255/tcp }
   - { port: 30000-32767/tcp }
   - { port: 6783/tcp }
   - { port: 6783-6784/udp }

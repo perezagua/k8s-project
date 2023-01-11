@@ -18,8 +18,8 @@ Vagrant.configure("2") do |config|
   end
 
   (1..NUM_WORKER_NODES).each do |i|
-    config.vm.define "node0#{i}" do |node|
-      node.vm.hostname = "worker-node0#{i}"
+    config.vm.define "node-#{i}" do |node|
+      node.vm.hostname = "worker-node-#{i}"
       node.vm.network "private_network", ip: IP_NW + "#{IP_START + i}"
       node.vm.provider "virtualbox" do |vb|
         vb.memory = 2048

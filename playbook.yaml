@@ -11,6 +11,9 @@
     loop:
       "{{ dependencies }}"
 
+  - name: Turn off swap
+    command: swapoff -a
+
   - name: Enable Firewall
     service:
       name: firewalld
@@ -60,7 +63,7 @@
         overlay
         br_netfilter
 
-  - name: Set up other prerequisites
+  - name: Setup required sysctl params, these persist across reboots.
     sysctl:
       name: "{{ item }}"
       value: '1'
@@ -93,7 +96,7 @@
       regexp: 'SystemdCgroup = false'
       line: SystemdCgroup = true
 
-  - name: To apply the changes made in the last step, restart containerd
+  - name: Restart containerd package
     service:
       name: containerd
       state: restarted
@@ -122,36 +125,33 @@
       - kubeadm
       - kubectl
 
-  - name: Turn off swap
-    command: swapoff -a
-
   - name: Enable kubelet
     service:
       name: kubelet
       enabled: yes
 
   - name: Initializing Kubernetes cluster
-    when: inventory_hostname in groups['master']
     command: kubeadm init --apiserver-advertise-address=172.31.0.100 --control-plane-endpoint=172.31.0.100 --pod-network-cidr=10.244.0.0/16
+    when: inventory_hostname in groups['master']
 
   - name: Set up Kubernetes for not root user
     become: false
-    when: inventory_hostname in groups['master']
     shell: |
       mkdir -p $HOME/.kube
       sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
       sudo chown $(id -u):$(id -g) $HOME/.kube/config
+    when: inventory_hostname in groups['master']
 
   - name: Install Weave Network Add-on
     become: false
-    when: inventory_hostname in groups['master']
     command: kubectl apply -f https://github.com/weaveworks/weave/releases/download/v2.8.1/weave-daemonset-k8s.yaml
+    when: inventory_hostname in groups['master']
 
   - name: Retrieve Kubernetes join command that is used to join worker node(s)
     become: false
-    when: inventory_hostname in groups['master']
     command: kubeadm token create --print-join-command
     register: join_command_raw
+    when: inventory_hostname in groups['master']
 
   - name: Set join command
     set_fact:
