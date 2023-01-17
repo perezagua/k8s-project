@@ -166,3 +166,8 @@
   - name: Join node to the cluster
     shell: "{{ hostvars['master-node'].join_command }}"
     when: inventory_hostname in groups['workers']
+
+  - name: Install helm
+    become: false
+    command: curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+    when: inventory_hostname in groups['master']
