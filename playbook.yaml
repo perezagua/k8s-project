@@ -168,5 +168,5 @@
     when: inventory_hostname in groups['workers']
 
   - name: Install helm
-    exec: curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+    shell: curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
     when: inventory_hostname in groups['master']
