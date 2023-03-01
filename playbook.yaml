@@ -5,38 +5,38 @@
   - variables
   tasks:
   - name: Install the dependencies
-    yum:
+    ansible.builtin.yum:
       name: "{{ item }}"
       state: present
     loop:
       "{{ dependencies }}"
 
   - name: Turn off swap
-    command: swapoff -a
+    ansible.builtin.command: swapoff -a
 
   - name: Enable Firewall
-    service:
+    ansible.builtin.service:
       name: firewalld
       state: started
-      enabled: yes
+      enabled: true
 
   - name: Add firewall rules on the master node
-    firewalld:
+    ansible.posix.firewalld::
       zone: public
       port: "{{ item.port }}"
-      permanent: yes
-      immediate: yes
+      permanent: true
+      immediate: true
       state: enabled
     loop:
       "{{ master_port_list }}"
     when: inventory_hostname in groups['master']
 
   - name: Add firewall rules on the worker nodes
-    firewalld:
+    ansible.posix.firewalld:
       zone: public
       port: "{{ item.port }}"
-      permanent: yes
-      immediate: yes
+      permanent: true
+      immediate: true
       state: enabled
     loop:
       "{{ worker_port_list }}"
@@ -51,7 +51,7 @@
     with_items: '{{ groups["all"] }}'
 
   - name: Load two required modules
-    shell: |
+    ansible.builtin.shell: |
       modprobe overlay
       modprobe br_netfilter
 
@@ -81,12 +81,12 @@
       mode: 0644
 
   - name: Install the containerd package
-    yum:
+    ansible.builtin.yum:
       name: containerd
       state: present
 
   - name: Create a configuration file for containerd and set it to default
-    shell: |
+    ansible.builtin.shell: |
       mkdir -p /etc/containerd
       containerd config default | tee /etc/containerd/config.toml
 
@@ -97,7 +97,7 @@
       line: SystemdCgroup = true
 
   - name: Restart containerd package
-    service:
+    ansible.builtin.service:
       name: containerd
       state: restarted
       enabled: true
@@ -116,27 +116,31 @@
         gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
 
   - name: Install all Kubernetes modules (kubelet, kubeadm, kubectl)
-    yum:
+    ansible.builtin.yum:
       name: "{{ packages }}"
       state: present
     vars:
       packages:
-      - kubelet
-      - kubeadm
-      - kubectl
+        - kubelet
+        - kubeadm
+        - kubectl
 
   - name: Enable kubelet
-    service:
+    ansible.builtin.service:
       name: kubelet
-      enabled: yes
+      enabled: true
 
   - name: Initializing Kubernetes cluster
-    command: kubeadm init --apiserver-advertise-address=172.31.0.100 --control-plane-endpoint=172.31.0.100 --pod-network-cidr=10.244.0.0/16
+    ansible.builtin.command: |
+      kubeadm init
+      --apiserver-advertise-address=172.31.0.100
+      --control-plane-endpoint=172.31.0.100
+      --pod-network-cidr=10.244.0.0/16
     when: inventory_hostname in groups['master']
 
   - name: Set up Kubernetes for not root user
     become: false
-    shell: |
+    ansible.builtin.shell: |
       mkdir -p $HOME/.kube
       sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
       sudo chown $(id -u):$(id -g) $HOME/.kube/config
@@ -144,17 +148,18 @@
 
   - name: Install Weave Network Add-on
     become: false
-    command: kubectl apply -f https://github.com/weaveworks/weave/releases/download/v2.8.1/weave-daemonset-k8s.yaml
+    ansible.builtin.command: >
+      kubectl apply -f https://github.com/weaveworks/weave/releases/download/v2.8.1/weave-daemonset-k8s.yaml
     when: inventory_hostname in groups['master']
 
   - name: Retrieve Kubernetes join command that is used to join worker node(s)
     become: false
-    command: kubeadm token create --print-join-command
+    ansible.builtin.command: kubeadm token create --print-join-command
     register: join_command_raw
     when: inventory_hostname in groups['master']
 
   - name: Set join command
-    set_fact:
+    ansible.builtin.set_fact:
       join_command: "{{ join_command_raw.stdout_lines[0] }}"
     when: inventory_hostname in groups['master']
 
@@ -162,11 +167,25 @@
     debug:
       msg: "{{ join_command }}"
     when: inventory_hostname in groups['master']
-    
+
   - name: Join node to the cluster
-    shell: "{{ hostvars['master-node'].join_command }}"
+    ansible.builtin.command: "{{ hostvars['master-node'].join_command }}"
     when: inventory_hostname in groups['workers']
 
+  - name: Add k alias on Master Node
+    become: false
+    ansible.builtin.lineinfile:
+      path: ~/.bashrc
+      line: alias k=kubectl
+      regexp: '^alias k=kubectl&'
+      state: present
+      insertafter: EOF
+      create: true
+      mode: '0644'
+    when: inventory_hostname in groups['master']
+
   - name: Install helm
-    shell: curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+    ansible.builtin.shell: |
+      set -o pipefail
+      curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
     when: inventory_hostname in groups['master']
