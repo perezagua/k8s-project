@@ -21,7 +21,7 @@
       enabled: true
 
   - name: Add firewall rules on the master node
-    ansible.posix.firewalld::
+    ansible.posix.firewalld:
       zone: public
       port: "{{ item.port }}"
       permanent: true
