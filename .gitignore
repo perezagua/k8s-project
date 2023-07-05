@@ -13,5 +13,5 @@
 
 # End of https://www.toptal.com/developers/gitignore/api/vagrant
 
-### Visual Studio Code
-.vscode/
+## Visual Studio Code
+..vscode/

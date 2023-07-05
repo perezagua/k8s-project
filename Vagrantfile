@@ -3,8 +3,6 @@ IP_NW="172.31.0."
 IP_START=100
 
 Vagrant.configure("2") do |config|
-  config.vm.provision "shell", inline: "yum -y update"
-
   config.vm.box = "geerlingguy/centos7"
   config.vm.box_check_update = true
 
