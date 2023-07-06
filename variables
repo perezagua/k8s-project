@@ -22,4 +22,4 @@ dependencies:
   - yum-utils
   - device-mapper-persistent-data 
   - lvm2
-  - epel-release
+  - git
