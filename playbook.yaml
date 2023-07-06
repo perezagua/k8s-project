@@ -11,6 +11,12 @@
     loop:
       "{{ dependencies }}"
 
+  - name: Fix epel repo url repository (only CentOS)
+    ansible.builtin.replace:
+      path: /etc/yum.repos.d/epel.repo
+      regexp: "metalink=https"
+      replace: "metalink=http"
+
   - name: Turn off swap
     ansible.builtin.command: swapoff -a
 
@@ -188,4 +194,5 @@
     ansible.builtin.shell: |
       set -o pipefail
       curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+    ignore_errors: true
     when: inventory_hostname in groups['master']
